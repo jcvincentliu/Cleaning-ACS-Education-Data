@@ -1,0 +1,138 @@
+---
+title: "Applied Problem Set 2 - Analyzing US Education Using ACS Data"
+author: "Vincent Liu"
+date: "4/13/2022"
+output: pdf_document: default
+        html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  eval = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(lubridate)
+library(forcats)
+library(stringr)
+library(tibble)
+library(sf)
+library(maps)
+library(tools)
+```
+
+```{r}
+here("C:/Users/liu00/Downloads", "U Chicago/Spring 2022", "TA_DP1_R/Spring 2022", "ps/applied_ps2")
+```
+```{r}
+data <- read_csv("ACS 2015-2019.csv")
+```
+
+```{r}
+ACS_Education <- data %>%
+  select(!ends_with("D"), HINSCAID, DEGFIELD,) %>%
+  rename_with(~ tolower(gsub(".", "_", .x, fixed = TRUE))) %>%  # lowercase variable names
+  rename(State = stateicp, Medicare = hinscare, "Grade Level" = gradeatt, "School Type" = schltype, "School Attendance" = school, "Employment Status" = empstat, Medicaid = hinscaid, "Degree Field" = degfield, "Personal Income" = inctot, Year = year, Sex = sex, Age = age, Race = race, Language = language) %>% 
+  relocate(Medicaid, .after = Language) %>%
+  mutate(Race = 
+           case_when(
+             Race == 1 ~ "White",
+             Race == 2 ~ "Black",
+             Race %in% 3:6 ~ "Asian or Pacific Islander",
+             Race %in% 7:9 ~ "Others"
+           )) %>%
+  filter(Language %in% c(1, 2, 11, 12, 18, 43, 48, 49, 57, 94, 96, 99)) %>%
+  mutate(`Grade Level` = case_when(
+    `Grade Level` %in% 1:3 ~ "Preschool or elementary",
+    `Grade Level` == 4 ~ "Middle school",
+    `Grade Level` == 5 ~ "High school",
+    `Grade Level` == 6 ~ "College",
+    `Grade Level` == 7 ~ "Graduate school",
+    `Grade Level` == 0 ~ "No school or NA"
+  )) %>%
+  filter(`Personal Income` >0) %>%
+  mutate(`Employment Status` = case_when(
+   `Employment Status` == 1 ~ "Employed",
+   `Employment Status` %in% 2:3 ~ "Unemployed/Not Labor Force",
+   `Employment Status` == 0 ~ "No Data"
+  )) 
+
+```
+
+```{r}
+ACS_Education <- ACS_Education%>%
+  mutate(`Degree Field` = case_when(
+    `Degree Field` %in% c(36, 50) ~ "Science",
+    `Degree Field` %in% c(11, 13, 14, 24, 25, 33, 34, 35, 51, 56, 57, 58, 59) ~ "Engineering",
+    `Degree Field` %in% c(21) ~ "Computer Science",
+    `Degree Field` %in% c(37) ~ "Math and Statistics",
+    `Degree Field` %in% c(15, 19, 20, 26, 48, 49, 60, 64) ~ "Arts and Humanity",
+    `Degree Field` %in% c(23, 29, 52, 53, 55) ~ "Social Science and Psychology",
+    `Degree Field` == 54 ~ "Public Policy",
+    `Degree Field` == 32 ~ "Law",
+    `Degree Field` == 62 ~ "Business",
+    `Degree Field` == 61 ~ "Health and Medical Science",
+    `Degree Field` %in% c(22, 38, 40, 41) ~ "Other",
+    `Degree Field` == 0 ~ "No degree/NA",
+  )) %>%
+  mutate(across(!c(Age, `Personal Income`), as.factor))
+```
+
+```{r}
+ACS_Education <- ACS_Education %>%
+  mutate(Sex = fct_recode(Sex, Male= "1", Female = "2")) %>%
+  mutate(Race = fct_infreq(Race)) %>%
+  mutate(Medicare = fct_recode(Medicare, No= "1", Yes = "2")) %>%
+  mutate(Medicaid = fct_recode(Medicaid, No= "1", Yes = "2")) %>%
+  mutate(`School Attendance` = fct_recode(`School Attendance`, No= "1", Yes = "2")) %>%
+  mutate(`School Type` = fct_recode(`School Type`, "Not Enrolled"= "1", Public = "2", Private = "3"))
+
+ACS_Education <- ACS_Education %>%
+  mutate(Language = fct_recode(Language, English= "1", German = "2", French= "11", Spanish = "12", Russian = "18", Chinese = "43", Japan = "48", Korean = "49", Arabic = "57", Native = "94", "Not Reported" = "96"))
+ACS_Education <- ACS_Education %>%
+  mutate(State = fct_recode(State, Connecticut= "1", Maine = "2", Massachusetts ="3","New Hampshire" = "4", "Rhode Island"="5", Vermont="6", Delaware="11", "New Jersey"="12", "New York"="13", Pennsylvania = "14", Illinois="21", Indiana="22", Michigan="23", Ohio="24", Wisconsin="25", Iowa="31",Kansas="32",Minnesota="33",Missouri="34",Nebraska="35","North Dakota"="36","South Dakota"="37",Virginia="40",Alabama="41",Arkansas="42",Florida="43",Georgia="44", Louisiana="45", Mississippi="46", "North Carolina"="47", "South Carolina"="48", Texas="49",Kentucky="51",Maryland="52",Oklahoma="53",Tennessee="54","West Virginia"="56", Arizona="61", Colorado="62", Idaho="63", Montana="64",Nevada="65","New Mexico"="66", Utah="67", Wyoming="68", California="71", Oregon="72", Washington="73", Alaska="81", Hawaii="82", "District of Columbia"="98"))
+
+ACS_Education <- ACS_Education %>%
+  filter(Age>=5 & Age <=30) %>%
+  filter(`Personal Income` != 9999999 & `Personal Income` >1000)
+```
+
+
+```{r}
+states <- st_as_sf(map("state", plot = FALSE, fill = TRUE))
+#states <- cbind(states, st_coordinates(st_centroid(states)))
+states$ID <- toTitleCase(states$ID)
+#head(states)
+States_tibble <- as_tibble(states) 
+
+States_tibble <- States_tibble %>%
+  rename(State=ID)
+
+states <- states %>%
+  rename(State=ID) %>%
+  rename(geometry=geom)
+
+ACS_Education_state <- merge(ACS_Education, states, by = "State")
+
+ggplot(data = ACS_Education_state) +
+    geom_sf()
+```
+
+
+```{r}
+ACS_Education_19 <- ACS_Education %>%
+  filter(Year == "2019") 
+```
+
+
+```{r}
+write.csv(ACS_Education, "Education.csv")
+saveRDS(ACS_Education, file='Education.rds')
+```
+
+```{r}
+write.csv(ACS_Education_19, "Education_2019.csv")
+```

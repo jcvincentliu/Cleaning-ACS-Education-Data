@@ -12,7 +12,7 @@ knitr::opts_chunk$set(
   eval = TRUE)
 ```
 
-```{r}
+```{r, echo=F}
 library(here)
 library(tidyverse)
 library(lubridate)
@@ -24,10 +24,10 @@ library(maps)
 library(tools)
 ```
 
-```{r}
+```{r, echo=F}
 here("C:/Users/liu00/Downloads", "U Chicago/Spring 2022", "TA_DP1_R/Spring 2022", "ps/applied_ps2")
 ```
-```{r}
+```{r, echo=F}
 data <- read_csv("ACS 2015-2019.csv")
 ```
 
